@@ -1,3 +1,5 @@
+import { TopNav } from "./components/top-nav";
+
 type Feature = {
   title: string;
   description: string;
@@ -108,16 +110,7 @@ const timeline: TimelineStep[] = [
 export default function Home() {
   return (
     <div className="page">
-      <header className="top-nav" aria-label="Primary navigation">
-        <a className="top-nav__brand" href="#hero">
-          <span aria-hidden>🐾</span>
-          <span>PawPlaces</span>
-          <span className="top-nav__badge">MVP in progress</span>
-        </a>
-        <button className="top-nav__cta" type="button">
-          Join the waitlist
-        </button>
-      </header>
+      <TopNav />
 
       <main className="main-content">
         <section id="hero" className="hero">
