@@ -113,12 +113,13 @@ export default function MyPlacesPage() {
       }
 
       const result = (await response.json()) as PlaceResponse;
+      const createdPlace = result.data;
 
-      if (!result.data) {
+      if (!createdPlace) {
         throw new Error("Missing place in response");
       }
 
-      setPlaces((previous) => [result.data, ...previous]);
+      setPlaces((previous) => [createdPlace, ...previous]);
       setFormState({ name: "", notes: "", tags: "" });
     } catch (error) {
       console.error("Unable to save place", error);
