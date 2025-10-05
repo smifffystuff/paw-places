@@ -1,16 +1,7 @@
-import type { Db, Document } from "mongodb";
+import type { Db } from "mongodb";
 import { MongoClient, MongoClientOptions, ServerApiVersion } from "mongodb";
 
-const uri = process.env.MONGODB_URI;
-
-if (!uri) {
-  throw new Error(
-    "Missing MONGODB_URI environment variable. Set it in your environment to connect to MongoDB."
-  );
-}
-
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+let clientPromise: Promise<MongoClient> | undefined;
 
 const options: MongoClientOptions = {
   serverApi: {
@@ -26,25 +17,44 @@ declare global {
 }
 
 if (process.env.NODE_ENV === "development") {
-  if (!global._mongoClientPromise) {
-    client = new MongoClient(uri, options);
-    global._mongoClientPromise = client.connect();
+  clientPromise = global._mongoClientPromise;
+
+  if (!clientPromise && process.env.MONGODB_URI) {
+    const client = new MongoClient(process.env.MONGODB_URI, options);
+    clientPromise = client.connect();
+    global._mongoClientPromise = clientPromise;
   }
-  clientPromise = global._mongoClientPromise as Promise<MongoClient>;
-} else {
-  client = new MongoClient(uri, options);
+} else if (process.env.MONGODB_URI) {
+  const client = new MongoClient(process.env.MONGODB_URI, options);
   clientPromise = client.connect();
 }
 
-export async function getMongoClient(): Promise<MongoClient> {
+function ensureClientPromise(): Promise<MongoClient> {
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri) {
+    throw new Error(
+      "Missing MONGODB_URI environment variable. Set it in your environment to connect to MongoDB."
+    );
+  }
+
+  if (!clientPromise) {
+    const client = new MongoClient(uri, options);
+    clientPromise = client.connect();
+  }
+
   return clientPromise;
 }
 
-export async function getDatabase<TSchema = Document>(
+export async function getMongoClient(): Promise<MongoClient> {
+  return ensureClientPromise();
+}
+
+export async function getDatabase(
   dbName: string
-): Promise<Db<TSchema>> {
-  const mongoClient = await getMongoClient();
-  return mongoClient.db<TSchema>(dbName);
+): Promise<Db> {
+  const mongoClient = await ensureClientPromise();
+  return mongoClient.db(dbName);
 }
 
 export default clientPromise;
