@@ -3,13 +3,9 @@
   "version": "1.0.0",
   "description": "PawPlaces - Social app for discovering pet-friendly places",
   "scripts": {
-    "setup": "powershell -ExecutionPolicy Bypass -File setup.ps1",
-    "backend": "cd backend && npm run dev",
-    "mobile": "cd mobile && npm start",
-    "backend:install": "cd backend && npm install",
-    "mobile:install": "cd mobile && npm install"
+    
   },
   "keywords": ["pets", "social", "react-native", "expo", "fastify"],
-  "author": "",
+  "author": "Martin Smith <martin.smifff@gmail.com>",
   "license": "MIT"
 }
