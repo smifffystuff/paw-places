@@ -1,11 +1,15 @@
-import { ObjectId, type Collection } from "mongodb";
+import {
+  ObjectId,
+  type Collection,
+  type OptionalUnlessRequiredId,
+  type WithId,
+} from "mongodb";
 import { getDatabase } from "./mongodb";
 
 const DEFAULT_DB_NAME = "paw-places";
 const COLLECTION_NAME = "my_places";
 
-export type PlaceDocument = {
-  _id: ObjectId;
+type PlaceSchema = {
   userId: string;
   name: string;
   notes: string;
@@ -14,6 +18,8 @@ export type PlaceDocument = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type PlaceDocument = WithId<PlaceSchema>;
 
 export type PlaceInput = {
   name: string;
@@ -38,10 +44,10 @@ export type PlaceDto = {
   updatedAt: string;
 };
 
-async function getPlacesCollection(): Promise<Collection<PlaceDocument>> {
+async function getPlacesCollection(): Promise<Collection<PlaceSchema>> {
   const dbName = process.env.MONGODB_DB || DEFAULT_DB_NAME;
   const database = await getDatabase(dbName);
-  return database.collection<PlaceDocument>(COLLECTION_NAME);
+  return database.collection<PlaceSchema>(COLLECTION_NAME);
 }
 
 function normalizePlaceDocument(document: PlaceDocument): PlaceDto {
@@ -71,7 +77,7 @@ export async function createPlace(
 ): Promise<PlaceDto> {
   const collection = await getPlacesCollection();
   const timestamp = new Date().toISOString();
-  const document: Omit<PlaceDocument, "_id"> = {
+  const document: OptionalUnlessRequiredId<PlaceSchema> = {
     userId,
     name: input.name,
     notes: input.notes?.trim() ?? "",
@@ -82,7 +88,10 @@ export async function createPlace(
   };
 
   const result = await collection.insertOne(document);
-  return normalizePlaceDocument({ _id: result.insertedId, ...document });
+  return normalizePlaceDocument({
+    _id: result.insertedId,
+    ...document,
+  } as PlaceDocument);
 }
 
 export async function updatePlace(
@@ -96,7 +105,7 @@ export async function updatePlace(
 
   const collection = await getPlacesCollection();
   const timestamp = new Date().toISOString();
-  const setUpdates: Partial<PlaceDocument> & { updatedAt: string } = {
+  const setUpdates: Partial<PlaceSchema> & { updatedAt: string } = {
     updatedAt: timestamp,
   };
 
@@ -116,17 +125,17 @@ export async function updatePlace(
     setUpdates.visited = updates.visited ?? false;
   }
 
-  const { value } = await collection.findOneAndUpdate(
+  const updatedDocument = await collection.findOneAndUpdate(
     { _id: new ObjectId(id), userId },
     { $set: setUpdates },
     { returnDocument: "after" }
   );
 
-  if (!value) {
+  if (!updatedDocument) {
     return null;
   }
 
-  return normalizePlaceDocument(value);
+  return normalizePlaceDocument(updatedDocument);
 }
 
 export async function deletePlace(userId: string, id: string): Promise<boolean> {
