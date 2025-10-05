@@ -10,16 +10,15 @@ type Place = {
   tags: string;
   visited: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
-const STORAGE_KEY = "pawplaces::my-places";
+type PlacesResponse = {
+  data?: Place[];
+};
 
-const createId = () => {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return Math.random().toString(36).slice(2, 11);
+type PlaceResponse = {
+  data?: Place;
 };
 
 export default function MyPlacesPage() {
@@ -29,52 +28,68 @@ export default function MyPlacesPage() {
     notes: "",
     tags: "",
   });
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    let isCancelled = false;
 
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Place[];
-        setPlaces(parsed);
+    async function loadPlaces() {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const response = await fetch("/api/my-places", { cache: "no-store" });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as PlacesResponse;
+        const data = Array.isArray(payload.data) ? payload.data : [];
+
+        if (!isCancelled) {
+          setPlaces(data);
+        }
+      } catch (error) {
+        console.error("Unable to load places", error);
+
+        if (!isCancelled) {
+          setErrorMessage(
+            "We couldn't load your saved places. Please try again in a moment."
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-    } catch (error) {
-      console.warn("Unable to load saved places", error);
-    } finally {
-      setIsHydrated(true);
     }
+
+    loadPlaces();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
-
-  useEffect(() => {
-    if (!isHydrated || typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(places));
-    } catch (error) {
-      console.warn("Unable to persist places", error);
-    }
-  }, [places, isHydrated]);
 
   const visitedCount = useMemo(
     () => places.filter((place) => place.visited).length,
     [places]
   );
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!formState.name.trim()) {
       return;
     }
 
-    const newPlace: Place = {
-      id: createId(),
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    const payload = {
       name: formState.name.trim(),
       notes: formState.notes.trim(),
       tags: formState.tags
@@ -82,24 +97,97 @@ export default function MyPlacesPage() {
         .map((tag) => tag.trim())
         .filter(Boolean)
         .join(", "),
-      visited: false,
-      createdAt: new Date().toISOString(),
     };
 
-    setPlaces((prev) => [newPlace, ...prev]);
-    setFormState({ name: "", notes: "", tags: "" });
+    try {
+      const response = await fetch("/api/my-places", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const result = (await response.json()) as PlaceResponse;
+
+      if (!result.data) {
+        throw new Error("Missing place in response");
+      }
+
+      setPlaces((previous) => [result.data, ...previous]);
+      setFormState({ name: "", notes: "", tags: "" });
+    } catch (error) {
+      console.error("Unable to save place", error);
+      setErrorMessage(
+        "We couldn't save that place. Please check your connection and try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const toggleVisited = (id: string) => {
-    setPlaces((prev) =>
-      prev.map((place) =>
-        place.id === id ? { ...place, visited: !place.visited } : place
-      )
-    );
+  const toggleVisited = async (id: string) => {
+    setErrorMessage(null);
+    const current = places.find((place) => place.id === id);
+
+    if (!current) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/my-places/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ visited: !current.visited }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as PlaceResponse;
+      const updated = payload.data;
+
+      if (!updated) {
+        throw new Error("Missing place in response");
+      }
+
+      setPlaces((previous) =>
+        previous.map((place) => (place.id === id ? updated : place))
+      );
+    } catch (error) {
+      console.error("Unable to update place", error);
+      setErrorMessage(
+        "We couldn't update that place right now. Please try again shortly."
+      );
+    }
   };
 
-  const removePlace = (id: string) => {
-    setPlaces((prev) => prev.filter((place) => place.id !== id));
+  const removePlace = async (id: string) => {
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/my-places/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      setPlaces((previous) => previous.filter((place) => place.id !== id));
+    } catch (error) {
+      console.error("Unable to remove place", error);
+      setErrorMessage(
+        "We couldn't remove that place right now. Please try again shortly."
+      );
+    }
   };
 
   return (
@@ -107,6 +195,12 @@ export default function MyPlacesPage() {
       <TopNav />
 
       <main className="my-places">
+        {errorMessage && (
+          <div role="alert" className="my-places__alert">
+            {errorMessage}
+          </div>
+        )}
+
         <section className="my-places__intro" aria-labelledby="my-places-title">
           <div className="my-places__header">
             <h1 id="my-places-title">Your personal place collection</h1>
@@ -192,8 +286,8 @@ export default function MyPlacesPage() {
               </div>
 
               <div className="form-actions">
-                <button type="submit" className="btn-primary">
-                  Save place
+                <button type="submit" className="btn-primary" disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save place"}
                 </button>
               </div>
             </form>
@@ -210,7 +304,9 @@ export default function MyPlacesPage() {
               </p>
             </div>
 
-            {places.length === 0 ? (
+            {isLoading ? (
+              <p className="my-places__empty">Loading your saved places...</p>
+            ) : places.length === 0 ? (
               <p className="my-places__empty">
                 You haven&apos;t saved any places yet. Start by adding the spots on
                 your wishlist above.

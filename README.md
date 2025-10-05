@@ -17,7 +17,7 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 ### Authentication setup
 
 1. Create a `.env.local` file based on `.env.example` and supply your Clerk publishable and secret keys.
-2. Add your MongoDB connection string to the `MONGODB_URI` variable. MongoDB Atlas users can copy the SRV connection string from their cluster overview page.
+2. Add your MongoDB connection string to the `MONGODB_URI` variable. MongoDB Atlas users can copy the SRV connection string from their cluster overview page. Optionally set `MONGODB_DB` to control which database stores My Places entries (defaults to `paw-places`).
 3. In the Clerk dashboard, enable the **Email code** and **Google** sign-in methods for your application.
 4. Add `http://localhost:3000` to the list of allowed redirect URLs in Clerk so the in-app modals can complete the OAuth
    flow locally.
