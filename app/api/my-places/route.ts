@@ -1,9 +1,31 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createPlace, listPlaces } from "@/lib/my-places";
 
+function requireUser() {
+  const { userId } = auth();
+
+  if (!userId) {
+    return {
+      response: NextResponse.json(
+        { error: "You must be signed in to manage saved places" },
+        { status: 401 }
+      ),
+    } as const;
+  }
+
+  return { userId } as const;
+}
+
 export async function GET() {
+  const result = requireUser();
+
+  if ("response" in result) {
+    return result.response;
+  }
+
   try {
-    const places = await listPlaces();
+    const places = await listPlaces(result.userId);
     return NextResponse.json({ data: places });
   } catch (error) {
     console.error("Failed to list places", error);
@@ -15,6 +37,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const result = requireUser();
+
+  if ("response" in result) {
+    return result.response;
+  }
+
   try {
     const payload = await request.json();
 
@@ -25,7 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const place = await createPlace({
+    const place = await createPlace(result.userId, {
       name: payload.name,
       notes: typeof payload.notes === "string" ? payload.notes : undefined,
       tags: typeof payload.tags === "string" ? payload.tags : undefined,

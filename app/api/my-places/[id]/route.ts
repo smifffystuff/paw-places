@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { deletePlace, updatePlace, type PlaceUpdate } from "@/lib/my-places";
 
 function invalidIdResponse() {
@@ -6,6 +7,21 @@ function invalidIdResponse() {
     { error: "Invalid place identifier" },
     { status: 400 }
   );
+}
+
+function requireUser() {
+  const { userId } = auth();
+
+  if (!userId) {
+    return {
+      response: NextResponse.json(
+        { error: "You must be signed in to manage saved places" },
+        { status: 401 }
+      ),
+    } as const;
+  }
+
+  return { userId } as const;
 }
 
 export async function PATCH(
@@ -16,6 +32,12 @@ export async function PATCH(
 
   if (!id) {
     return invalidIdResponse();
+  }
+
+  const userResult = requireUser();
+
+  if ("response" in userResult) {
+    return userResult.response;
   }
 
   let payload: unknown;
@@ -60,7 +82,7 @@ export async function PATCH(
   }
 
   try {
-    const place = await updatePlace(id, filteredUpdates);
+    const place = await updatePlace(userResult.userId, id, filteredUpdates);
 
     if (!place) {
       return NextResponse.json(
@@ -93,8 +115,14 @@ export async function DELETE(
     return invalidIdResponse();
   }
 
+  const userResult = requireUser();
+
+  if ("response" in userResult) {
+    return userResult.response;
+  }
+
   try {
-    const deleted = await deletePlace(id);
+    const deleted = await deletePlace(userResult.userId, id);
 
     if (!deleted) {
       return NextResponse.json(

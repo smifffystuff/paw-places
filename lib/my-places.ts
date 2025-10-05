@@ -6,6 +6,7 @@ const COLLECTION_NAME = "my_places";
 
 export type PlaceDocument = {
   _id: ObjectId;
+  userId: string;
   name: string;
   notes: string;
   tags: string;
@@ -55,19 +56,23 @@ function normalizePlaceDocument(document: PlaceDocument): PlaceDto {
   };
 }
 
-export async function listPlaces(): Promise<PlaceDto[]> {
+export async function listPlaces(userId: string): Promise<PlaceDto[]> {
   const collection = await getPlacesCollection();
   const documents = await collection
-    .find({}, { sort: { createdAt: -1 } })
+    .find({ userId }, { sort: { createdAt: -1 } })
     .toArray();
 
   return documents.map(normalizePlaceDocument);
 }
 
-export async function createPlace(input: PlaceInput): Promise<PlaceDto> {
+export async function createPlace(
+  userId: string,
+  input: PlaceInput
+): Promise<PlaceDto> {
   const collection = await getPlacesCollection();
   const timestamp = new Date().toISOString();
   const document: Omit<PlaceDocument, "_id"> = {
+    userId,
     name: input.name,
     notes: input.notes?.trim() ?? "",
     tags: input.tags?.trim() ?? "",
@@ -81,6 +86,7 @@ export async function createPlace(input: PlaceInput): Promise<PlaceDto> {
 }
 
 export async function updatePlace(
+  userId: string,
   id: string,
   updates: PlaceUpdate
 ): Promise<PlaceDto | null> {
@@ -111,7 +117,7 @@ export async function updatePlace(
   }
 
   const { value } = await collection.findOneAndUpdate(
-    { _id: new ObjectId(id) },
+    { _id: new ObjectId(id), userId },
     { $set: setUpdates },
     { returnDocument: "after" }
   );
@@ -123,13 +129,16 @@ export async function updatePlace(
   return normalizePlaceDocument(value);
 }
 
-export async function deletePlace(id: string): Promise<boolean> {
+export async function deletePlace(userId: string, id: string): Promise<boolean> {
   if (!ObjectId.isValid(id)) {
     throw new Error("INVALID_ID");
   }
 
   const collection = await getPlacesCollection();
-  const result = await collection.deleteOne({ _id: new ObjectId(id) });
+  const result = await collection.deleteOne({
+    _id: new ObjectId(id),
+    userId,
+  });
   return result.deletedCount === 1;
 }
 
