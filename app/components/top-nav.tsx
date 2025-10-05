@@ -15,11 +15,17 @@ const isClerkConfigured = Boolean(
 export function TopNav() {
   return (
     <header className="top-nav" aria-label="Primary navigation">
-      <a className="top-nav__brand" href="#hero">
+      <a className="top-nav__brand" href="/">
         <span aria-hidden>🐾</span>
         <span>PawPlaces</span>
         <span className="top-nav__badge">MVP in progress</span>
       </a>
+
+      <nav className="top-nav__menu" aria-label="Site">
+        <a className="top-nav__menu-link" href="/my-places">
+          My places
+        </a>
+      </nav>
 
       <div className="top-nav__actions">
         {isClerkConfigured ? (
